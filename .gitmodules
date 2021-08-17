@@ -1,0 +1,12 @@
+[submodule "external/spdlog"]
+	path = external/spdlog
+	url = https://github.com/gabime/spdlog
+[submodule "external/assimp"]
+	path = external/assimp
+	url = https://github.com/assimp/assimp
+[submodule "external/glew"]
+	path = external/glew
+	url = https://github.com/Perlmint/glew-cmake
+[submodule "external/glfw"]
+	path = external/glfw
+	url = https://github.com/glfw/glfw
