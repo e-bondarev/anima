@@ -1,22 +1,22 @@
-#pragma once
+// #pragma once
 
-#include "object.h"
+// #include "object.h"
 
-#include <string>
+// #include <string>
 
-class Shader : public GPUObject
-{
-public:
-	Shader(const std::string& vs_code, const std::string& fs_code);
-	~Shader();
+// class Shader : public GPUObject
+// {
+// public:
+// 	Shader(const std::string& vs_code, const std::string& fs_code);
+// 	~Shader();
 
-	void bind() override;
-	void unbind() override;
+// 	void bind() override;
+// 	void unbind() override;
 
-private:
-	GLuint create_shader(const std::string code, GLuint shader_type);
-	void link() const;
+// private:
+// 	GLuint create_shader(const std::string code, GLuint shader_type);
+// 	void link() const;
 
-	GLuint vs_handle;
-	GLuint fs_handle;
-};
+// 	GLuint vs_handle;
+// 	GLuint fs_handle;
+// };
