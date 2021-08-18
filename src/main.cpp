@@ -3,33 +3,14 @@
 #include "graphics/opengl/shader.h"
 #include "graphics/opengl/vao.h"
 
-const char* vs_code = R""""(
+#include "common.h"
 
-#version 440 core
+#include "files/files.h"
 
-layout (location = 0) in vec2 in_Position;
+#include "shaders/default.vert.h"
+#include "shaders/default.frag.h"
 
-void main()
-{
-	gl_Position = vec4(in_Position, 0.0, 1.0);
-}
-
-)"""";
-
-const char* fs_code = R""""(
-
-#version 440 core
-
-out vec4 out_Color;
-
-void main()
-{
-	out_Color = vec4(0.0, 0.0, 1.0, 1.0);
-}
-
-)"""";
-
-int main(int argc, char* argv[])
+void program()
 {
 	Win** window_pp = global::get_window_pp();
 	*window_pp = new Win();
@@ -37,7 +18,7 @@ int main(int argc, char* argv[])
 
 	global::gui::init();
 
-	Shader shader(vs_code, fs_code);
+	Shader shader(default_vert, default_frag);
 
 	std::vector<Vertex> vertices = {
 		{ { -0.5f, -0.5f } },
@@ -81,6 +62,54 @@ int main(int argc, char* argv[])
 	global::gui::shutdown();
 
 	delete *global::get_window_pp();
+}
+
+const std::vector<std::string> SHADER_FORMATS = { "vert", "frag" };
+
+bool is_shader(const std::string& format)
+{
+	for (int i = 0; i < SHADER_FORMATS.size(); i++)
+		if (SHADER_FORMATS[i] == format)
+			return true;
+
+	return false;
+}
+
+void file_callback(const std::string& entry)
+{
+	const std::string& type = files::get_type(entry);
+
+	if (is_shader(type))
+	{
+		const std::string content = files::read(entry);
+
+		const std::string header_path = entry + ".h";
+		files::write(header_path, content);
+	}
+}
+
+void directory_callback(const std::string& entry)
+{
+	files::recursive_loop(entry, directory_callback, file_callback);
+}
+
+void compile_shaders()
+{
+	const std::string path = get_arguments()[0];
+	const std::string src = path.substr(0, path.find("build")) + "src";
+	
+	files::recursive_loop(src, directory_callback, file_callback);
+}
+
+int main(int argc, char* argv[])
+{
+	arguments(argc, argv);
+
+#ifndef COMPILE_SHADERS
+	program();
+#else
+	compile_shaders();
+#endif
 
 	return 0;
 }
