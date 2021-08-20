@@ -12,7 +12,14 @@
 #include "xyapi/gl/vao.h"
 
 struct aiNode;
+struct aiMesh;
+struct aiScene;
 struct aiAnimation;
+
+namespace Assimp
+{
+	class Importer;
+}
 
 struct Vertex
 {
@@ -41,16 +48,16 @@ struct BoneSpace
 	glm::mat4 final_world_matrix;
 };
 
-struct SkeletalNode
+struct Bone
 {
 	std::string name;
 
 	glm::mat4 transformation;
 
-	SkeletalNode* parent;
-	std::vector<std::shared_ptr<SkeletalNode>> children;
+	Bone* parent;
+	std::vector<std::shared_ptr<Bone>> children;
 
-	SkeletalNode(aiNode* node, SkeletalNode* parent);
+	Bone(aiNode* node, Bone* parent);
 };
 
 template <class T>
@@ -68,7 +75,7 @@ struct KeyFrames
 	KeyFrame<T> next_key_frame;
 };
 
-struct NodeAnimation
+struct BoneAnimation
 {
 	std::string name;
 
@@ -87,20 +94,21 @@ public:
 	float duration;
 	float ticks_per_second;
 
-	std::vector<NodeAnimation> channels;
+	std::vector<BoneAnimation> channels;
 };
 
 class Avatar
 {
 public:
 	Avatar() = default;
+	Avatar(const aiScene* scene, const aiMesh* mesh);
 
 	void calculate_pose(float time, Animation& animation);
 	
 	std::vector<BoneSpace> bone_transforms;
 	std::vector<glm::mat4> current_transforms;
 	glm::mat4 global_inverse_transform;
-	std::unique_ptr<SkeletalNode> root_node;
+	std::unique_ptr<Bone> root_node;
 	std::map<std::string, uint32_t> bones_map;
 	uint32_t amount_of_bones{0};
 
@@ -113,9 +121,17 @@ class Model
 {
 public:
 	Model(const std::string& path);
-	
-	Avatar* avatar;
+	~Model();
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
+
+	Assimp::Importer* importer;
+
+	const aiScene* scene;
+	const aiMesh* mesh;
+
+private:
+	Model(const Model&) = delete;
+	Model& operator=(const Model&) = delete;
 };

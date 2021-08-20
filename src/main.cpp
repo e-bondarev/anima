@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
 	{
 		Model model("D:/Dev/anima/assets/models/1.fbx");
 
-		avatar = model.avatar;
+		avatar = new Avatar(model.scene, model.mesh);
 
 		vao.bind();
 			vao.add_vbo(VBO::Type::Array, VBO::Usage::Static, model.vertices.size(), sizeof(Vertex), &model.vertices[0], Vertex::GetLayout());
