@@ -15,28 +15,16 @@ struct VertexBoneData
 	float weights[4];
 };
 
-glm::mat4x4 convert_matrix(aiMatrix4x4 aiMatrix)
+static glm::mat4x4 convert_matrix(aiMatrix4x4 b)
 {
-	glm::mat4x4 result;
+	glm::mat4x4 a;
 
-	result[0][0] = aiMatrix.a1;
-	result[0][1] = aiMatrix.b1;
-	result[0][2] = aiMatrix.c1;
-	result[0][3] = aiMatrix.d1;
-	result[1][0] = aiMatrix.a2;
-	result[1][1] = aiMatrix.b2;
-	result[1][2] = aiMatrix.c2;
-	result[1][3] = aiMatrix.d2;
-	result[2][0] = aiMatrix.a3;
-	result[2][1] = aiMatrix.b3;
-	result[2][2] = aiMatrix.c3;
-	result[2][3] = aiMatrix.d3;
-	result[3][0] = aiMatrix.a4;
-	result[3][1] = aiMatrix.b4;
-	result[3][2] = aiMatrix.c4;
-	result[3][3] = aiMatrix.d4;
+	a[0][0] = b.a1; a[0][1] = b.b1; a[0][2] = b.c1; a[0][3] = b.d1;
+	a[1][0] = b.a2; a[1][1] = b.b2; a[1][2] = b.c2; a[1][3] = b.d2;
+	a[2][0] = b.a3; a[2][1] = b.b3; a[2][2] = b.c3; a[2][3] = b.d3;
+	a[3][0] = b.a4; a[3][1] = b.b4; a[3][2] = b.c4; a[3][3] = b.d4;
 
-	return result;
+	return a;
 }
 
 SkeletalNode::SkeletalNode(aiNode* node, SkeletalNode* parent)
@@ -47,7 +35,7 @@ SkeletalNode::SkeletalNode(aiNode* node, SkeletalNode* parent)
 
 	for (int i = 0; i < node->mNumChildren; i++)
 	{
-		children.push_back(new SkeletalNode(node->mChildren[i], this));
+		children.push_back(std::make_shared<SkeletalNode>(node->mChildren[i], this));
 	}
 }
 
@@ -92,26 +80,28 @@ Model::Model(const std::string& path)
 		indices.push_back(face->mIndices[2]);
 	}
 
+	avatar = new Avatar();
+
 	for (int i = 0; i < mesh.mNumBones; i++)
 	{
 		uint32_t bone_index = 0;
 		std::string bone_name(mesh.mBones[i]->mName.data);
 
-		if (bones_map.find(bone_name) == bones_map.end())
+		if (avatar->bones_map.find(bone_name) == avatar->bones_map.end())
 		{
-			bone_index = amount_of_bones;
-			amount_of_bones++;
+			bone_index = avatar->amount_of_bones;
+			avatar->amount_of_bones++;
 
 			BoneSpace bone_space;
 
-			bone_transforms.push_back(bone_space);
-			bone_transforms[bone_index].offset_matrix = convert_matrix(mesh.mBones[i]->mOffsetMatrix);
+			avatar->bone_transforms.push_back(bone_space);
+			avatar->bone_transforms[bone_index].offset_matrix = convert_matrix(mesh.mBones[i]->mOffsetMatrix);
 
-			bones_map[bone_name] = bone_index;
+			avatar->bones_map[bone_name] = bone_index;
 		}
 		else
 		{
-			bone_index = bones_map[bone_name];
+			bone_index = avatar->bones_map[bone_name];
 		}
 
 		for (int j = 0; j < mesh.mBones[i]->mNumWeights; j++)
@@ -137,12 +127,12 @@ Model::Model(const std::string& path)
 		memcpy(&vertices[i].weights[0], &bones_data[i].weights[0], sizeof(glm::vec4));
 	}
 
-	global_inverse_transform = convert_matrix(scene->mRootNode->mTransformation);
-	global_inverse_transform = glm::inverse(global_inverse_transform);	
+	avatar->global_inverse_transform = convert_matrix(scene->mRootNode->mTransformation);
+	avatar->global_inverse_transform = glm::inverse(avatar->global_inverse_transform);	
 
-	root_node = new SkeletalNode(scene->mRootNode, nullptr);
+	avatar->root_node = std::make_unique<SkeletalNode>(scene->mRootNode, nullptr);
 
-	current_transforms.resize(amount_of_bones, glm::mat4(1));
+	avatar->current_transforms.resize(avatar->amount_of_bones, glm::mat4(1));
 }
 
 static const NodeAnimation* find_node_animation(const Animation& animation, const std::string& node_name)
@@ -227,7 +217,7 @@ static float get_blend_factor(const KeyFrames<T>& keyFramesPair, float time)
 	return blend;
 }
 
-static void process_node_hierarchy(Model* model, float animationTime, const SkeletalNode* node, const glm::mat4& parentTransform, Animation& animation)
+static void process_node_hierarchy(Avatar* model, float animationTime, const SkeletalNode* node, const glm::mat4& parentTransform, Animation& animation)
 {
 	const std::string& nodeName = node->name;
 	glm::mat4x4 nodeTransform = node->transformation;
@@ -275,18 +265,18 @@ static void process_node_hierarchy(Model* model, float animationTime, const Skel
 
 	for (unsigned int i = 0; i < node->children.size(); i++)
 	{
-		process_node_hierarchy(model, animationTime, node->children[i], globalTransform, animation);
+		process_node_hierarchy(model, animationTime, node->children[i].get(), globalTransform, animation);
 	}
 }
 
-void Model::calculate_pose(float time, Animation& animation)
+void Avatar::calculate_pose(float time, Animation& animation)
 {
 	glm::mat4 root(1);
 
 	float time_in_ticks = time * animation.ticks_per_second;
 	float current_time = fmod(time_in_ticks, animation.duration);
 
-	process_node_hierarchy(this, current_time, root_node, root, animation);
+	process_node_hierarchy(this, current_time, root_node.get(), root, animation);
 
 	current_transforms.resize(amount_of_bones);
 

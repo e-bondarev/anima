@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include <string>
+#include <memory>
 #include <vector>
 #include <map>
 
@@ -47,7 +48,7 @@ struct SkeletalNode
 	glm::mat4 transformation;
 
 	SkeletalNode* parent;
-	std::vector<SkeletalNode*> children;
+	std::vector<std::shared_ptr<SkeletalNode>> children;
 
 	SkeletalNode(aiNode* node, SkeletalNode* parent);
 };
@@ -92,27 +93,29 @@ public:
 class Avatar
 {
 public:
+	Avatar() = default;
+
 	void calculate_pose(float time, Animation& animation);
+	
+	std::vector<BoneSpace> bone_transforms;
+	std::vector<glm::mat4> current_transforms;
+	glm::mat4 global_inverse_transform;
+	std::unique_ptr<SkeletalNode> root_node;
+	std::map<std::string, uint32_t> bones_map;
+	uint32_t amount_of_bones{0};
+
+private:
+	Avatar(const Avatar&) = delete;
+	Avatar& operator=(const Avatar&) = delete;
 };
 
 class Model
 {
 public:
 	Model(const std::string& path);
-
-	void calculate_pose(float time, Animation& animation);
 	
-	std::vector<BoneSpace> bone_transforms;
-
-	std::vector<glm::mat4> current_transforms;
-
-	glm::mat4 global_inverse_transform;
-
-	SkeletalNode* root_node;
+	Avatar* avatar;
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
-
-	std::map<std::string, uint32_t> bones_map;
-	uint32_t amount_of_bones{0};
 };

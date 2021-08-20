@@ -28,7 +28,20 @@ int main(int argc, char* argv[])
 
 	Shader shader(default_vert, default_frag, { "u_model", "u_proj" });
 
-	Model model("D:/Dev/anima/assets/models/1.fbx");
+	Avatar* avatar;
+	VAO vao;
+
+	// Load model
+	{
+		Model model("D:/Dev/anima/assets/models/1.fbx");
+
+		avatar = model.avatar;
+
+		vao.bind();
+			vao.add_vbo(VBO::Type::Array, VBO::Usage::Static, model.vertices.size(), sizeof(Vertex), &model.vertices[0], Vertex::GetLayout());
+			vao.add_vbo(VBO::Type::Indices, VBO::Usage::Static, model.indices.size(), sizeof(uint32_t), &model.indices[0]);
+	}
+
 	Image image("D:/Dev/anima/assets/textures/1.png");
 
 	Animation animation("D:/Dev/anima/assets/models/1.fbx");
@@ -38,11 +51,6 @@ int main(int argc, char* argv[])
 	model_matrix = glm::mat4(1);
 	model_matrix = glm::translate(model_matrix, glm::vec3(0, 0, -10));
 	model_matrix = glm::scale(model_matrix, glm::vec3(0.01f));
-
-	VAO vao;
-	vao.bind();
-		vao.add_vbo(VBO::Type::Array, VBO::Usage::Static, model.vertices.size(), sizeof(Vertex), &model.vertices[0], Vertex::GetLayout());
-		vao.add_vbo(VBO::Type::Indices, VBO::Usage::Static, model.indices.size(), sizeof(uint32_t), &model.indices[0]);
 
 	while (window.is_running())
 	{
@@ -66,11 +74,11 @@ int main(int argc, char* argv[])
 
 				static float time = 0;
 				time += 0.1f;
-				model.calculate_pose(time, animation);
+				avatar->calculate_pose(time, animation);
 
 				shader.set_uniform_mat4("u_model", &model_matrix[0][0]);
 				shader.set_uniform_mat4("u_proj", &projection_matrix[0][0]);
-				shader.set_uniform_mat4("u_bones", &model.current_transforms[0][0][0], model.amount_of_bones);
+				shader.set_uniform_mat4("u_bones", &avatar->current_transforms[0][0][0], avatar->amount_of_bones);
 
 				vao.bind();
 				texture.bind();
@@ -86,6 +94,8 @@ int main(int argc, char* argv[])
 
 		window.swap_buffers();
 	}
+
+	delete avatar;
 
 	global::gui::shutdown();
 
