@@ -37,6 +37,7 @@ target_include_directories(
 	external/spdlog/include
 	external/imgui/src
 	external/xyapi/include
+	external/stb_image/include
 	external/glm
 )
 

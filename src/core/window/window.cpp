@@ -10,6 +10,7 @@ Win::Win()
 	glfwMaximizeWindow(handle);
 
 	glewInit();
+	glEnable(GL_DEPTH_TEST);
 }
 
 Win::~Win()

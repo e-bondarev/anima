@@ -16,6 +16,7 @@ public:
 	void unbind() override;
 
 	void set_uniform_vec2(const std::string& name, float* data);
+	void set_uniform_mat4(const std::string& name, float* data, uint32_t count = 1);
 
 private:
 	uint32_t create_shader(const std::string code, uint32_t shader_type);

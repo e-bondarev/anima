@@ -99,3 +99,8 @@ void Shader::set_uniform_vec2(const std::string& name, float* data)
 {
 	glUniform2f(uniforms[name], data[0], data[1]);
 }
+
+void Shader::set_uniform_mat4(const std::string& name, float* data, uint32_t count)
+{
+	glUniformMatrix4fv(uniforms[name], count, GL_FALSE, data);
+}
