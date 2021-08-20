@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
 	Texture texture(image.width, image.height, image.data, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, { Texture::set_interpolation(Interpolation::Constant) });
 
 	model_matrix = glm::mat4(1);
-	model_matrix = glm::translate(model_matrix, glm::vec3(0, 0, -10));
+	model_matrix = glm::translate(model_matrix, glm::vec3(0, -3, -10));
 	model_matrix = glm::scale(model_matrix, glm::vec3(0.01f));
 
 	while (window.is_running())

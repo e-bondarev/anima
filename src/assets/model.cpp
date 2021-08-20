@@ -21,16 +21,13 @@ static glm::mat4x4 convert_matrix(aiMatrix4x4 b)
 	return a;
 }
 
-Bone::Bone(aiNode* node, Bone* parent)
+void Bone::Init(aiNode* ai_node)
 {
-	name = std::string(node->mName.data);
-	parent = parent;
-	transformation = convert_matrix(node->mTransformation);
+	name = std::string(ai_node->mName.data);
+	transformation = convert_matrix(ai_node->mTransformation);
 
-	for (int i = 0; i < node->mNumChildren; i++)
-	{
-		children.push_back(std::make_shared<Bone>(node->mChildren[i], this));
-	}
+	for (int i = 0; i < ai_node->mNumChildren; i++)
+		children.emplace_back().Init(ai_node->mChildren[i]);
 }
 
 Model::Model(const std::string& path)
@@ -40,9 +37,7 @@ Model::Model(const std::string& path)
 	const aiScene* scene = importer->ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);
 
 	if (!scene)
-	{
 		spdlog::error("Failed to load model: {0}", path);
-	}
 
 	const aiMesh& mesh = *scene->mMeshes[0];
 
@@ -69,14 +64,8 @@ Model::Model(const std::string& path)
 	const uint32_t indices_per_face = 3;
 
 	for (int i = 0; i < mesh.mNumFaces; i++)
-	{
-		const aiFace* face = &mesh.mFaces[i];
-
 		for (int j = 0; j < indices_per_face; j++)
-		{
-			indices[i * indices_per_face + j] = face->mIndices[j];
-		}
-	}
+			indices[i * indices_per_face + j] = mesh.mFaces[i].mIndices[j];
 
 	struct PerVertexBoneData { uint32_t ids[4]; float weights[4]; };
 	std::vector<PerVertexBoneData> bones_data(mesh.mNumVertices);
@@ -90,14 +79,9 @@ Model::Model(const std::string& path)
 		std::string bone_name(mesh.mBones[i]->mName.data);
 
 		if (bones_map.find(bone_name) == bones_map.end())
-		{
-			bone_index = amount_of_bones++;
-			bones_map[bone_name] = bone_index;
-		}
+			bones_map[bone_name] = bone_index = amount_of_bones++;
 		else
-		{
 			bone_index = bones_map[bone_name];
-		}
 
 		for (int j = 0; j < mesh.mBones[i]->mNumWeights; j++)
 		{
@@ -121,8 +105,6 @@ Model::Model(const std::string& path)
 		memcpy(&vertices[i].joint_ids[0], &bones_data[i].ids[0], sizeof(glm::vec4));
 		memcpy(&vertices[i].weights[0], &bones_data[i].weights[0], sizeof(glm::vec4));
 	}
-
-	// avatar = new Avatar(this->scene, this->mesh);
 }
 
 Model::~Model()
@@ -135,18 +117,13 @@ Avatar::Avatar(const aiScene* scene, const aiMesh* mesh)
 	for (int i = 0; i < mesh->mNumBones; i++)
 	{
 		uint32_t bone_index = 0;
-		std::string bone_name(mesh->mBones[i]->mName.data);
+		const std::string bone_name(mesh->mBones[i]->mName.data);
 
 		if (bones_map.find(bone_name) == bones_map.end())
 		{
-			bone_index = amount_of_bones;
-			amount_of_bones++;
-
-			BoneSpace bone_space;
-
-			bone_transforms.push_back(bone_space);
+			bone_index = amount_of_bones++;
+			bone_transforms.emplace_back();
 			bone_transforms[bone_index].offset_matrix = convert_matrix(mesh->mBones[i]->mOffsetMatrix);
-
 			bones_map[bone_name] = bone_index;
 		}
 	}
@@ -154,55 +131,53 @@ Avatar::Avatar(const aiScene* scene, const aiMesh* mesh)
 	global_inverse_transform = convert_matrix(scene->mRootNode->mTransformation);
 	global_inverse_transform = glm::inverse(global_inverse_transform);	
 
-	root_node = std::make_unique<Bone>(scene->mRootNode, nullptr);
+	root_node.Init(scene->mRootNode);
 
 	current_transforms.resize(amount_of_bones, glm::mat4(1));
 }
 
-static const BoneAnimation* find_node_animation(const Animation& animation, const std::string& node_name)
+static const BoneAnimation* find_bone_animation(const Animation& animation, const std::string& bone_name)
 {
 	for (int i = 0; i < animation.channels.size(); i++)
-	{
-		const BoneAnimation* nodeAnimation = &animation.channels[i];
-
-		if (nodeAnimation->name == node_name)
-		{
-			return nodeAnimation;
-		}
-	}
+		if (animation.channels[i].name == bone_name)
+			return &animation.channels[i];
 
 	return nullptr;
 }
 
-static glm::quat lerp_quat(glm::quat& a, glm::quat& b, float blend)
+static glm::quat lerp_quat(const glm::quat& a, const glm::quat& b, const float blend)
 {
-	a = glm::normalize(a);
-	b = glm::normalize(b);
+	struct {
+		glm::quat a;
+		glm::quat b;
+	} normalized;
+
+	normalized.a = glm::normalize(a);
+	normalized.b = glm::normalize(b);
 
 	glm::quat result;
-	float dot_product = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
-	float inversed_blend = 1.0f - blend;
+	const float dot_product = normalized.a.x * normalized.b.x + normalized.a.y * normalized.b.y + normalized.a.z * normalized.b.z + normalized.a.w * normalized.b.w;
+	const float inversed_blend = 1.0f - blend;
 
 	if (dot_product < 0.0f)
 	{
-		result.x = a.x * inversed_blend + blend * -b.x;
-		result.y = a.y * inversed_blend + blend * -b.y;
-		result.z = a.z * inversed_blend + blend * -b.z;
-		result.w = a.w * inversed_blend + blend * -b.w;
+		result.x = normalized.a.x * inversed_blend + blend * -normalized.b.x;
+		result.y = normalized.a.y * inversed_blend + blend * -normalized.b.y;
+		result.z = normalized.a.z * inversed_blend + blend * -normalized.b.z;
+		result.w = normalized.a.w * inversed_blend + blend * -normalized.b.w;
 	}
 	else
 	{
-		result.x = a.x * inversed_blend + blend * b.x;
-		result.y = a.y * inversed_blend + blend * b.y;
-		result.z = a.z * inversed_blend + blend * b.z;
-		result.w = a.w * inversed_blend + blend * b.w;
+		result.x = normalized.a.x * inversed_blend + blend * normalized.b.x;
+		result.y = normalized.a.y * inversed_blend + blend * normalized.b.y;
+		result.z = normalized.a.z * inversed_blend + blend * normalized.b.z;
+		result.w = normalized.a.w * inversed_blend + blend * normalized.b.w;
 	}
 
-	// return glm::normalize(result);
 	return result;
 }
 
-static glm::vec3 lerp_vec3(glm::vec3& first, glm::vec3& second, float blend)
+static glm::vec3 lerp_vec3(const glm::vec3& first, const glm::vec3& second, const float blend)
 {
 	return first + blend * (second - first);
 }
@@ -211,12 +186,8 @@ template <class T>
 static unsigned int get_frame_index(float time, const std::vector<KeyFrame<T>>& keys)
 {
 	for (int i = 0; i < keys.size() - 1; i++)
-	{
 		if (time < keys[i + 1].time)
-		{
 			return i;
-		}
-	}
 
 	return 0;
 }
@@ -236,79 +207,72 @@ static KeyFrames<T> get_key_frames(float animation_time, const std::vector<KeyFr
 template <class T>
 static float get_blend_factor(const KeyFrames<T>& keyFramesPair, float time)
 {
-	float deltaTime = keyFramesPair.next_key_frame.time - keyFramesPair.current_key_frame.time;
-	float blend = (time - keyFramesPair.current_key_frame.time) / deltaTime;
+	const float deltaTime = keyFramesPair.next_key_frame.time - keyFramesPair.current_key_frame.time;
+	const float blend = (time - keyFramesPair.current_key_frame.time) / deltaTime;
 
 	return blend;
 }
 
-static void process_node_hierarchy(Avatar* model, float animationTime, const Bone* node, const glm::mat4& parentTransform, Animation& animation)
+void Avatar::process_node_hierarchy(float animation_time, const Animation& animation, Bone& bone, const glm::mat4& parent_transform)
 {
-	const std::string& nodeName = node->name;
-	glm::mat4x4 nodeTransform = node->transformation;
+	glm::mat4 bone_transform = bone.transformation;
 
-	const BoneAnimation* nodeAnimation = find_node_animation(animation, nodeName);
+	const BoneAnimation* bone_animation = find_bone_animation(animation, bone.name);
 
-	if (nodeAnimation)
-	{
-		KeyFrames<glm::vec3>& scalingKeyFrames = get_key_frames<glm::vec3>(animationTime, nodeAnimation->scale_keys);
-		KeyFrames<glm::quat>& rotationKeyFrames = get_key_frames<glm::quat>(animationTime, nodeAnimation->rotation_keys);
-		KeyFrames<glm::vec3>& translationKeyFrames = get_key_frames<glm::vec3>(animationTime, nodeAnimation->position_keys);
+	if (bone_animation)
+	{		
+		KeyFrames<glm::vec3>& scaling_key_frames = get_key_frames<glm::vec3>(animation_time, bone_animation->scale_keys);
+		KeyFrames<glm::quat>& rotation_key_frames = get_key_frames<glm::quat>(animation_time, bone_animation->rotation_keys);
+		KeyFrames<glm::vec3>& translation_key_frames = get_key_frames<glm::vec3>(animation_time, bone_animation->position_keys);
 
-		glm::vec3 scalingVector = lerp_vec3(
-			scalingKeyFrames.current_key_frame.value,
-			scalingKeyFrames.next_key_frame.value,
-			get_blend_factor<glm::vec3>(scalingKeyFrames, animationTime)
+		const glm::vec3 scaling_vec = lerp_vec3(
+			scaling_key_frames.current_key_frame.value,
+			scaling_key_frames.next_key_frame.value,
+			get_blend_factor<glm::vec3>(scaling_key_frames, animation_time)
 		);
 
-		glm::quat rotationQuat = lerp_quat(
-			rotationKeyFrames.current_key_frame.value,
-			rotationKeyFrames.next_key_frame.value,
-			get_blend_factor<glm::quat>(rotationKeyFrames, animationTime)
+		const glm::quat rotation_quat = lerp_quat(
+			rotation_key_frames.current_key_frame.value,
+			rotation_key_frames.next_key_frame.value,
+			get_blend_factor<glm::quat>(rotation_key_frames, animation_time)
 		);
 
-		glm::vec3 translationVector = lerp_vec3(
-			translationKeyFrames.current_key_frame.value,
-			translationKeyFrames.next_key_frame.value,
-			get_blend_factor<glm::vec3>(translationKeyFrames, animationTime)
+		const glm::vec3 translation_vec = lerp_vec3(
+			translation_key_frames.current_key_frame.value,
+			translation_key_frames.next_key_frame.value,
+			get_blend_factor<glm::vec3>(translation_key_frames, animation_time)
 		);
 
-		glm::mat4x4 scalingMatrix = glm::scale(glm::identity<glm::mat4x4>(), scalingVector);
-		glm::mat4x4 rotationMatrix = glm::toMat4(rotationQuat);
-		glm::mat4x4 translationMatrix = glm::translate(glm::identity<glm::mat4x4>(), translationVector);
+		const glm::mat4 scaling = glm::scale(glm::mat4(1), scaling_vec);
+		const glm::mat4 rotation = glm::toMat4(rotation_quat);
+		const glm::mat4 translation = glm::translate(glm::mat4(1), translation_vec);
 
-		nodeTransform = translationMatrix * rotationMatrix * scalingMatrix;
+		bone_transform = translation * rotation * scaling;
 	}
 
-	glm::mat4x4 globalTransform = parentTransform * nodeTransform;
+	const glm::mat4 global_transform = parent_transform * bone_transform;
 
-	if (model->bones_map.find(nodeName) != model->bones_map.end())
+	if (bones_map.find(bone.name) != bones_map.end())
 	{
-		uint32_t boneIndex = model->bones_map[nodeName];
-		model->bone_transforms[boneIndex].final_world_matrix = model->global_inverse_transform * globalTransform * model->bone_transforms[boneIndex].offset_matrix;
+		const uint32_t bone_index = bones_map[bone.name];
+		bone_transforms[bone_index].final_world_matrix = global_inverse_transform * global_transform * bone_transforms[bone_index].offset_matrix;
 	}
 
-	for (unsigned int i = 0; i < node->children.size(); i++)
-	{
-		process_node_hierarchy(model, animationTime, node->children[i].get(), globalTransform, animation);
-	}
+	for (int i = 0; i < bone.children.size(); i++)
+		process_node_hierarchy(animation_time, animation, bone.children[i], global_transform);
 }
 
-void Avatar::calculate_pose(float time, Animation& animation)
+void Avatar::calculate_pose(float time, const Animation& animation)
 {
-	glm::mat4 root(1);
+	const float time_in_ticks = time * animation.ticks_per_second;
+	const float current_time = fmod(time_in_ticks, animation.duration);
 
-	float time_in_ticks = time * animation.ticks_per_second;
-	float current_time = fmod(time_in_ticks, animation.duration);
-
-	process_node_hierarchy(this, current_time, root_node.get(), root, animation);
+	process_node_hierarchy(current_time, animation, root_node);
 
 	current_transforms.resize(amount_of_bones);
 
 	for (int i = 0; i < amount_of_bones; i++)
-	{
 		current_transforms[i] = bone_transforms[i].final_world_matrix;
-	}
 }
 
 Animation::Animation(const std::string& path)
@@ -318,71 +282,56 @@ Animation::Animation(const std::string& path)
 	const aiScene* scene = importer.ReadFile(path, aiProcess_Triangulate | aiProcess_FlipUVs);
 
 	if (!scene)
-	{
 		spdlog::error("Failed to load model: {0}", path);
-	}
 
-	aiAnimation* assimpAnimation = scene->mAnimations[0];
+	const aiAnimation* assimp_animation = scene->mAnimations[0];
 
-	name = std::string(assimpAnimation->mName.data);
-	duration = static_cast<float>(assimpAnimation->mDuration);
+	name = std::string(assimp_animation->mName.data);
+	duration = static_cast<float>(assimp_animation->mDuration);
 
-	if (assimpAnimation->mTicksPerSecond != 0.0)
-	{
-		ticks_per_second = static_cast<float>(assimpAnimation->mTicksPerSecond);
-	}
+	if (assimp_animation->mTicksPerSecond != 0.0)
+		ticks_per_second = static_cast<float>(assimp_animation->mTicksPerSecond);
 	else
-	{
 		ticks_per_second = 25.0f;
-	}
 
-	for (int i = 0, channelsCount = assimpAnimation->mNumChannels; i < channelsCount; i++)
+	for (int i = 0, channels_count = assimp_animation->mNumChannels; i < channels_count; i++)
 	{
-		aiNodeAnim& assimpNodeAnimation = *assimpAnimation->mChannels[i];
-		BoneAnimation nodeAnimation;
+		const aiNodeAnim& assimp_bone_animation = *assimp_animation->mChannels[i];
+		BoneAnimation bone_animation;
 
-		nodeAnimation.name = std::string(assimpNodeAnimation.mNodeName.data);
+		bone_animation.name = std::string(assimp_bone_animation.mNodeName.data);
 
-		for (int j = 0, positionKeysCount = assimpNodeAnimation.mNumPositionKeys; j < positionKeysCount; j++)
+		for (int j = 0, amount_of_pos_keys = assimp_bone_animation.mNumPositionKeys; j < amount_of_pos_keys; j++)
 		{
-			aiVectorKey& assimpPositionKey = assimpNodeAnimation.mPositionKeys[j];
-			KeyFrame<glm::vec3> positionKey;
+			aiVectorKey& assimp_pos_key = assimp_bone_animation.mPositionKeys[j];
+			KeyFrame<glm::vec3>& pos_key = bone_animation.position_keys.emplace_back();
 
-			positionKey.time = static_cast<float>(assimpPositionKey.mTime);
-			positionKey.value.x = static_cast<float>(assimpPositionKey.mValue.x);
-			positionKey.value.y = static_cast<float>(assimpPositionKey.mValue.y);
-			positionKey.value.z = static_cast<float>(assimpPositionKey.mValue.z);
-
-			nodeAnimation.position_keys.push_back(positionKey);
+			pos_key.time = static_cast<float>(assimp_pos_key.mTime);
+			memcpy(&pos_key.value.x, &assimp_pos_key.mValue.x, sizeof(glm::vec3));
 		}
 
-		for (int j = 0, rotationKeysCount = assimpNodeAnimation.mNumRotationKeys; j < rotationKeysCount; j++)
+		for (int j = 0, amount_of_rot_keys = assimp_bone_animation.mNumRotationKeys; j < amount_of_rot_keys; j++)
 		{
-			aiQuatKey& assimpRotationKey = assimpNodeAnimation.mRotationKeys[j];
-			KeyFrame<glm::quat> rotationKey;
+			aiQuatKey& assimp_rot_key = assimp_bone_animation.mRotationKeys[j];
+			KeyFrame<glm::quat>& rot_key = bone_animation.rotation_keys.emplace_back();
 
-			rotationKey.time = static_cast<float>(assimpRotationKey.mTime);
-			rotationKey.value.x = static_cast<float>(assimpRotationKey.mValue.x);
-			rotationKey.value.y = static_cast<float>(assimpRotationKey.mValue.y);
-			rotationKey.value.z = static_cast<float>(assimpRotationKey.mValue.z);
-			rotationKey.value.w = static_cast<float>(assimpRotationKey.mValue.w);
-
-			nodeAnimation.rotation_keys.push_back(rotationKey);
+			// Should figure out what to do here.. In glm it starts with w, that's the problem.
+			rot_key.time = static_cast<float>(assimp_rot_key.mTime);
+			rot_key.value.x = static_cast<float>(assimp_rot_key.mValue.x);
+			rot_key.value.y = static_cast<float>(assimp_rot_key.mValue.y);
+			rot_key.value.z = static_cast<float>(assimp_rot_key.mValue.z);
+			rot_key.value.w = static_cast<float>(assimp_rot_key.mValue.w);
 		}
 
-		for (int j = 0, scaleKeysCount = assimpNodeAnimation.mNumScalingKeys; j < scaleKeysCount; j++)
+		for (int j = 0, amount_of_scale_keys = assimp_bone_animation.mNumScalingKeys; j < amount_of_scale_keys; j++)
 		{
-			aiVectorKey& assimpScaleKey = assimpNodeAnimation.mScalingKeys[j];
-			KeyFrame<glm::vec3> scaleKey;
+			aiVectorKey& assimp_scale_key = assimp_bone_animation.mScalingKeys[j];
+			KeyFrame<glm::vec3>& scale_key = bone_animation.scale_keys.emplace_back();
 
-			scaleKey.time = static_cast<float>(assimpScaleKey.mTime);
-			scaleKey.value.x = static_cast<float>(assimpScaleKey.mValue.x);
-			scaleKey.value.y = static_cast<float>(assimpScaleKey.mValue.y);
-			scaleKey.value.z = static_cast<float>(assimpScaleKey.mValue.z);
-
-			nodeAnimation.scale_keys.push_back(scaleKey);
+			scale_key.time = static_cast<float>(assimp_scale_key.mTime);
+			memcpy(&scale_key.value.x, &assimp_scale_key.mValue.x, sizeof(glm::vec3));
 		}
 
-		channels.push_back(nodeAnimation);
+		channels.push_back(bone_animation);
 	}
 }

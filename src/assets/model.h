@@ -54,10 +54,9 @@ struct Bone
 
 	glm::mat4 transformation;
 
-	Bone* parent;
-	std::vector<std::shared_ptr<Bone>> children;
+	std::vector<Bone> children;
 
-	Bone(aiNode* node, Bone* parent);
+	void Init(aiNode* node);
 };
 
 template <class T>
@@ -103,16 +102,18 @@ public:
 	Avatar() = default;
 	Avatar(const aiScene* scene, const aiMesh* mesh);
 
-	void calculate_pose(float time, Animation& animation);
+	void calculate_pose(float time, const Animation& animation);
 	
 	std::vector<BoneSpace> bone_transforms;
 	std::vector<glm::mat4> current_transforms;
 	glm::mat4 global_inverse_transform;
-	std::unique_ptr<Bone> root_node;
+	Bone root_node;
 	std::map<std::string, uint32_t> bones_map;
 	uint32_t amount_of_bones{0};
 
 private:
+	void process_node_hierarchy(float animation_time, const Animation& animation, Bone& bone, const glm::mat4& parent_transform = glm::mat4(1));
+
 	Avatar(const Avatar&) = delete;
 	Avatar& operator=(const Avatar&) = delete;
 };
