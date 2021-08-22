@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 #include <map>
+#include <unordered_map>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -42,6 +43,15 @@ struct Vertex
     }
 };
 
+struct BoneWithName
+{
+	std::string name;
+	glm::mat4 offset;
+};
+
+using Bone_t = std::pair<std::string, glm::mat4>;
+using BoneMap_t = std::vector<Bone_t>;
+
 struct BoneSpace
 {
 	glm::mat4 offset_matrix;
@@ -51,13 +61,11 @@ struct BoneSpace
 struct Bone
 {
 	std::string name;
-
 	glm::mat4 transformation;
-
 	std::vector<Bone> children;
-
-	void Init(aiNode* node);
 };
+
+using Skeleton_t = Bone;
 
 template <class T>
 struct KeyFrame
@@ -99,15 +107,17 @@ public:
 class Avatar
 {
 public:
-	Avatar() = default;
-	Avatar(const aiScene* scene, const aiMesh* mesh);
+	Avatar(std::vector<BoneWithName> bones, Bone skeleton);
+	// Avatar(const BoneMap_t& bones, Bone skeleton);
 
 	void calculate_pose(float time, const Animation& animation);
 	
 	std::vector<BoneSpace> bone_transforms;
 	std::vector<glm::mat4> current_transforms;
 	glm::mat4 global_inverse_transform;
-	Bone root_node;
+
+	Bone skeleton;
+	
 	std::map<std::string, uint32_t> bones_map;
 	uint32_t amount_of_bones{0};
 
@@ -123,6 +133,10 @@ class Model
 public:
 	Model(const std::string& path);
 	~Model();
+
+	std::vector<BoneWithName> bones;
+	// BoneMap_t bones;
+	Skeleton_t skeleton;
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;

@@ -21,14 +21,25 @@ static glm::mat4x4 convert_matrix(aiMatrix4x4 b)
 	return a;
 }
 
-void Bone::Init(aiNode* ai_node)
+// void Bone::Init(aiNode* ai_node)
+// {
+// 	name = std::string(ai_node->mName.data);
+// 	transformation = convert_matrix(ai_node->mTransformation);
+
+// 	for (int i = 0; i < ai_node->mNumChildren; i++)
+// 		children.emplace_back().Init(ai_node->mChildren[i]);
+// }
+
+static void create_skeleton(aiNode* ai_node, Bone& self)
 {
-	name = std::string(ai_node->mName.data);
-	transformation = convert_matrix(ai_node->mTransformation);
+	self.name = std::string(ai_node->mName.data);
+	self.transformation = convert_matrix(ai_node->mTransformation);
 
 	for (int i = 0; i < ai_node->mNumChildren; i++)
-		children.emplace_back().Init(ai_node->mChildren[i]);
-}
+	{
+		create_skeleton(ai_node->mChildren[i], self.children.emplace_back());
+	}
+};
 
 Model::Model(const std::string& path)
 {
@@ -105,6 +116,14 @@ Model::Model(const std::string& path)
 		memcpy(&vertices[i].joint_ids[0], &bones_data[i].ids[0], sizeof(glm::vec4));
 		memcpy(&vertices[i].weights[0], &bones_data[i].weights[0], sizeof(glm::vec4));
 	}
+
+	for (int i = 0; i < mesh.mNumBones; i++)
+		bones.push_back({ mesh.mBones[i]->mName.data, convert_matrix(mesh.mBones[i]->mOffsetMatrix) });	
+		
+	// for (int i = 0; i < mesh.mNumBones; i++)
+	// 	bones[std::string(mesh.mBones[i]->mName.data)] = convert_matrix(mesh.mBones[i]->mOffsetMatrix);
+
+	create_skeleton(scene->mRootNode, skeleton);
 }
 
 Model::~Model()
@@ -112,26 +131,33 @@ Model::~Model()
 	delete importer;
 }
 
-Avatar::Avatar(const aiScene* scene, const aiMesh* mesh)
+Avatar::Avatar(std::vector<BoneWithName> BONES, Bone p_skeleton) : skeleton {p_skeleton}
 {
-	for (int i = 0; i < mesh->mNumBones; i++)
+	for (int i = 0; i < BONES.size(); i++)
 	{
-		uint32_t bone_index = 0;
-		const std::string bone_name(mesh->mBones[i]->mName.data);
-
-		if (bones_map.find(bone_name) == bones_map.end())
+		if (bones_map.find(BONES[i].name) == bones_map.end())
 		{
-			bone_index = amount_of_bones++;
-			bone_transforms.emplace_back();
-			bone_transforms[bone_index].offset_matrix = convert_matrix(mesh->mBones[i]->mOffsetMatrix);
-			bones_map[bone_name] = bone_index;
+			bone_transforms.emplace_back().offset_matrix = BONES[i].offset;
+			bones_map[BONES[i].name] = i;
+			spdlog::info("{0}. {1}", i, BONES[i].name);
 		}
 	}
 
-	global_inverse_transform = convert_matrix(scene->mRootNode->mTransformation);
-	global_inverse_transform = glm::inverse(global_inverse_transform);	
+	// int i = 0;
+	// for (auto& BONE : BONES)
+	// {
+	// 	if (bones_map.find(BONE.first) == bones_map.end())
+	// 	{
+	// 		bone_transforms.emplace_back().offset_matrix = BONE.second;
+	// 		bones_map[BONE.first] = i;
+	// 		spdlog::info("{0}. {1}", i, BONE.first);
+	// 	}
+	// 	i++;
+	// }
 
-	root_node.Init(scene->mRootNode);
+	amount_of_bones = BONES.size();
+
+	global_inverse_transform = glm::inverse(skeleton.transformation);
 
 	current_transforms.resize(amount_of_bones, glm::mat4(1));
 }
@@ -267,7 +293,7 @@ void Avatar::calculate_pose(float time, const Animation& animation)
 	const float time_in_ticks = time * animation.ticks_per_second;
 	const float current_time = fmod(time_in_ticks, animation.duration);
 
-	process_node_hierarchy(current_time, animation, root_node);
+	process_node_hierarchy(current_time, animation, skeleton);
 
 	current_transforms.resize(amount_of_bones);
 
@@ -315,12 +341,8 @@ Animation::Animation(const std::string& path)
 			aiQuatKey& assimp_rot_key = assimp_bone_animation.mRotationKeys[j];
 			KeyFrame<glm::quat>& rot_key = bone_animation.rotation_keys.emplace_back();
 
-			// Should figure out what to do here.. In glm it starts with w, that's the problem.
 			rot_key.time = static_cast<float>(assimp_rot_key.mTime);
-			rot_key.value.x = static_cast<float>(assimp_rot_key.mValue.x);
-			rot_key.value.y = static_cast<float>(assimp_rot_key.mValue.y);
-			rot_key.value.z = static_cast<float>(assimp_rot_key.mValue.z);
-			rot_key.value.w = static_cast<float>(assimp_rot_key.mValue.w);
+			memcpy(&rot_key.value[0], &assimp_rot_key.mValue.w, sizeof(float) * 4);
 		}
 
 		for (int j = 0, amount_of_scale_keys = assimp_bone_animation.mNumScalingKeys; j < amount_of_scale_keys; j++)
