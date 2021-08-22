@@ -21,14 +21,13 @@ void Avatar::init(const OffsetPerNameVec_t& offset_per_name_vec, const Bone& p_s
 		if (bones_map.find(bone_name) == bones_map.end())
 		{
 			offset_matrices.push_back(offset_per_name_vec[i].second);
+			current_transforms.push_back(glm::mat4(1));
 			bones_map[bone_name] = i;
 		}
 	}
 
 	skeleton = p_skeleton;
-	// amount_of_bones = offset_per_name_vec.size();
 	global_inverse_transform = glm::inverse(skeleton.transformation);
-	current_transforms.resize(offset_per_name_vec.size(), glm::mat4(1));
 }
 
 static const BoneAnimation* find_bone_animation(const Animation& animation, const std::string& bone_name)
@@ -40,7 +39,7 @@ static const BoneAnimation* find_bone_animation(const Animation& animation, cons
 	return nullptr;
 }
 
-template <class T>
+template <typename T>
 static unsigned int get_frame_index(float time, const std::vector<KeyFrame<T>>& keys)
 {
 	for (int i = 0; i < keys.size() - 1; i++)
@@ -50,7 +49,7 @@ static unsigned int get_frame_index(float time, const std::vector<KeyFrame<T>>& 
 	return 0;
 }
 
-template <class T>
+template <typename T>
 static KeyFrames<T> get_key_frames(float animation_time, const std::vector<KeyFrame<T>>& current)
 {
 	const uint32_t current_index = get_frame_index<T>(animation_time, current);
@@ -62,11 +61,11 @@ static KeyFrames<T> get_key_frames(float animation_time, const std::vector<KeyFr
 	return { current_key_frame, next_key_frame };
 }
 
-template <class T>
-static float get_blend_factor(const KeyFrames<T>& keyFramesPair, float time)
+template <typename T>
+float KeyFrames<T>::get_blend_factor(float animation_time) const
 {
-	const float deltaTime = keyFramesPair.next_key_frame.time - keyFramesPair.current_key_frame.time;
-	const float blend = (time - keyFramesPair.current_key_frame.time) / deltaTime;
+	const float deltaTime = next_key_frame.time - current_key_frame.time;
+	const float blend = (animation_time - current_key_frame.time) / deltaTime;
 
 	return blend;
 }
@@ -86,19 +85,19 @@ void Avatar::process_node_hierarchy(float animation_time, const Animation& anima
 		const glm::vec3 scaling_vec = glm::lerp(
 			scaling_key_frames.current_key_frame.value,
 			scaling_key_frames.next_key_frame.value,
-			get_blend_factor<glm::vec3>(scaling_key_frames, animation_time)
+			scaling_key_frames.get_blend_factor(animation_time)
 		);
 
 		const glm::quat rotation_quat = glm::lerp(
 			rotation_key_frames.current_key_frame.value,
 			rotation_key_frames.next_key_frame.value,
-			get_blend_factor<glm::quat>(rotation_key_frames, animation_time)
+			rotation_key_frames.get_blend_factor(animation_time)
 		);
 
 		const glm::vec3 translation_vec = glm::lerp(
 			translation_key_frames.current_key_frame.value,
 			translation_key_frames.next_key_frame.value,
-			get_blend_factor<glm::vec3>(translation_key_frames, animation_time)
+			translation_key_frames.get_blend_factor(animation_time)
 		);
 
 		const glm::mat4 scaling = glm::scale(glm::mat4(1), scaling_vec);

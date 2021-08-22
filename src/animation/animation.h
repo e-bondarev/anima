@@ -12,18 +12,20 @@ struct Bone
 	std::vector<Bone> children;
 };
 
-template <class T>
+template <typename T>
 struct KeyFrame
 {
 	float time;
 	T value;
 };
 
-template <class T>
+template <typename T>
 struct KeyFrames
 {
 	KeyFrame<T> current_key_frame;
 	KeyFrame<T> next_key_frame;
+
+	float get_blend_factor(float animation_time) const;
 };
 
 struct BoneAnimation
