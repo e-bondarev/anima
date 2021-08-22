@@ -28,15 +28,14 @@ int main(int argc, char* argv[])
 
 	Shader shader(default_vert, default_frag, { "u_model", "u_proj" });
 
-	Avatar* avatar;
+	Avatar avatar;
 	VAO vao;
 
 	// Load model
 	{
 		Model model("D:/Dev/anima/assets/models/1.fbx");
 
-		// avatar = new Avatar(model.scene, model.mesh);
-		avatar = new Avatar(model.bones, model.skeleton);
+		avatar.init(model.bone_map, model.skeleton);
 
 		vao.bind();
 			vao.add_vbo(VBO::Type::Array, VBO::Usage::Static, model.vertices.size(), sizeof(Vertex), &model.vertices[0], Vertex::GetLayout());
@@ -75,11 +74,11 @@ int main(int argc, char* argv[])
 
 				static float time = 0;
 				time += 0.1f;
-				avatar->calculate_pose(time, animation);
+				avatar.calculate_pose(time, animation);
 
 				shader.set_uniform_mat4("u_model", &model_matrix[0][0]);
 				shader.set_uniform_mat4("u_proj", &projection_matrix[0][0]);
-				shader.set_uniform_mat4("u_bones", &avatar->current_transforms[0][0][0], avatar->amount_of_bones);
+				shader.set_uniform_mat4("u_bones", &avatar.current_transforms[0][0][0], avatar.get_amount_of_bones());
 
 				vao.bind();
 				texture.bind();
@@ -95,8 +94,6 @@ int main(int argc, char* argv[])
 
 		window.swap_buffers();
 	}
-
-	delete avatar;
 
 	global::gui::shutdown();
 

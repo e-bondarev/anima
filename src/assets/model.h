@@ -12,6 +12,8 @@
 
 #include "xyapi/gl/vao.h"
 
+#include "../animation/animation.h"
+
 struct aiNode;
 struct aiMesh;
 struct aiScene;
@@ -43,100 +45,19 @@ struct Vertex
     }
 };
 
-using OffsetPerName_t = std::pair<std::string, glm::mat4>;
-using OffsetPerNameVec_t = std::vector<OffsetPerName_t>;
-
-struct BoneSpace
-{
-	glm::mat4 offset_matrix;
-	glm::mat4 final_world_matrix;
-};
-
-struct Bone
-{
-	std::string name;
-	glm::mat4 transformation;
-	std::vector<Bone> children;
-};
-
-using Skeleton_t = Bone;
-
-template <class T>
-struct KeyFrame
-{
-	float time;
-
-	T value;
-};
-
-template <class T>
-struct KeyFrames
-{
-	KeyFrame<T> current_key_frame;
-	KeyFrame<T> next_key_frame;
-};
-
-struct BoneAnimation
-{
-	std::string name;
-
-	std::vector<KeyFrame<glm::vec3>> position_keys;
-	std::vector<KeyFrame<glm::quat>> rotation_keys;
-	std::vector<KeyFrame<glm::vec3>> scale_keys;
-};
-
-class Animation
-{
-public:
-	Animation(const std::string& path);
-
-	std::string name;
-
-	float duration;
-	float ticks_per_second;
-
-	std::vector<BoneAnimation> channels;
-};
-
-class Avatar
-{
-public:
-	Avatar(const OffsetPerNameVec_t& bones, Bone skeleton);
-
-	void calculate_pose(float time, const Animation& animation);
-	
-	std::vector<BoneSpace> bone_transforms;
-	std::vector<glm::mat4> current_transforms;
-	glm::mat4 global_inverse_transform;
-
-	Bone skeleton;
-	
-	std::map<std::string, uint32_t> bones_map;
-	uint32_t amount_of_bones{0};
-
-private:
-	void process_node_hierarchy(float animation_time, const Animation& animation, Bone& bone, const glm::mat4& parent_transform = glm::mat4(1));
-
-	Avatar(const Avatar&) = delete;
-	Avatar& operator=(const Avatar&) = delete;
-};
-
 class Model
 {
 public:
 	Model(const std::string& path);
 	~Model();
 
-	OffsetPerNameVec_t bones;
+	OffsetPerNameVec_t bone_map;
 	Skeleton_t skeleton;
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;
 
 	Assimp::Importer* importer;
-
-	const aiScene* scene;
-	const aiMesh* mesh;
 
 private:
 	Model(const Model&) = delete;

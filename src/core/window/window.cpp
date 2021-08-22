@@ -4,6 +4,7 @@ Win::Win()
 {
 	glfwInit();
 	glfwDefaultWindowHints();
+	glfwWindowHint(GLFW_SAMPLES, 4);
 
 	handle = glfwCreateWindow(1920, 1080, "Anima", nullptr, nullptr);
 	glfwMakeContextCurrent(handle);
@@ -11,6 +12,7 @@ Win::Win()
 
 	glewInit();
 	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_MULTISAMPLE);
 }
 
 Win::~Win()
