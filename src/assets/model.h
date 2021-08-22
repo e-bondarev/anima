@@ -43,14 +43,8 @@ struct Vertex
     }
 };
 
-struct BoneWithName
-{
-	std::string name;
-	glm::mat4 offset;
-};
-
-using Bone_t = std::pair<std::string, glm::mat4>;
-using BoneMap_t = std::vector<Bone_t>;
+using OffsetPerName_t = std::pair<std::string, glm::mat4>;
+using OffsetPerNameVec_t = std::vector<OffsetPerName_t>;
 
 struct BoneSpace
 {
@@ -107,8 +101,7 @@ public:
 class Avatar
 {
 public:
-	Avatar(std::vector<BoneWithName> bones, Bone skeleton);
-	// Avatar(const BoneMap_t& bones, Bone skeleton);
+	Avatar(const OffsetPerNameVec_t& bones, Bone skeleton);
 
 	void calculate_pose(float time, const Animation& animation);
 	
@@ -134,8 +127,7 @@ public:
 	Model(const std::string& path);
 	~Model();
 
-	std::vector<BoneWithName> bones;
-	// BoneMap_t bones;
+	OffsetPerNameVec_t bones;
 	Skeleton_t skeleton;
 
 	std::vector<Vertex> vertices;

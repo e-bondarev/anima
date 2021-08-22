@@ -131,31 +131,20 @@ Model::~Model()
 	delete importer;
 }
 
-Avatar::Avatar(std::vector<BoneWithName> BONES, Bone p_skeleton) : skeleton {p_skeleton}
+Avatar::Avatar(const OffsetPerNameVec_t& offset_per_name_vec, Bone p_skeleton) : skeleton {p_skeleton}
 {
-	for (int i = 0; i < BONES.size(); i++)
+	for (int i = 0; i < offset_per_name_vec.size(); i++)
 	{
-		if (bones_map.find(BONES[i].name) == bones_map.end())
+		const std::string& bone_name = offset_per_name_vec[i].first;
+
+		if (bones_map.find(bone_name) == bones_map.end())
 		{
-			bone_transforms.emplace_back().offset_matrix = BONES[i].offset;
-			bones_map[BONES[i].name] = i;
-			spdlog::info("{0}. {1}", i, BONES[i].name);
+			bone_transforms.emplace_back().offset_matrix = offset_per_name_vec[i].second;
+			bones_map[bone_name] = i;
 		}
 	}
 
-	// int i = 0;
-	// for (auto& BONE : BONES)
-	// {
-	// 	if (bones_map.find(BONE.first) == bones_map.end())
-	// 	{
-	// 		bone_transforms.emplace_back().offset_matrix = BONE.second;
-	// 		bones_map[BONE.first] = i;
-	// 		spdlog::info("{0}. {1}", i, BONE.first);
-	// 	}
-	// 	i++;
-	// }
-
-	amount_of_bones = BONES.size();
+	amount_of_bones = offset_per_name_vec.size();
 
 	global_inverse_transform = glm::inverse(skeleton.transformation);
 
