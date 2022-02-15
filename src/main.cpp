@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
 
 	// Load model
 	{
-		Model model("D:/Dev/anima/assets/models/1.fbx");
+		Model model("assets/models/1.fbx");
 
 		avatar.init(model.bone_map, model.skeleton);
 
@@ -42,15 +42,11 @@ int main(int argc, char* argv[])
 			vao.add_vbo(VBO::Type::Indices, VBO::Usage::Static, model.indices.size(), sizeof(uint32_t), &model.indices[0]);
 	}
 
-	Image image("D:/Dev/anima/assets/textures/1.png");
+	Image image("assets/textures/1.png");
 
-	Animation animation("D:/Dev/anima/assets/models/1.fbx");
+	Animation animation("assets/models/1.fbx");
 
 	Texture texture(image.width, image.height, image.data, GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, { Texture::set_interpolation(Interpolation::Constant) });
-
-	model_matrix = glm::mat4(1);
-	model_matrix = glm::translate(model_matrix, glm::vec3(0, -3, -10));
-	model_matrix = glm::scale(model_matrix, glm::vec3(0.01f));
 
 	while (window.is_running())
 	{
@@ -73,8 +69,16 @@ int main(int argc, char* argv[])
 				projection_matrix = glm::perspective(glm::radians(70.0f), static_cast<float>(display_w) / static_cast<float>(display_h), 0.1f, 1000.0f);
 
 				static float time = 0;
-				time += 0.1f;
+				time += 0.2f;
 				avatar.calculate_pose(time, animation);
+
+                static float alpha = 0.f;
+                alpha += 0.333f;
+
+                model_matrix = glm::mat4(1);
+                model_matrix = glm::translate(model_matrix, glm::vec3(0, -2, -5));
+                model_matrix = glm::rotate(model_matrix, glm::radians(alpha), glm::vec3(0, 1, 0));
+                model_matrix = glm::scale(model_matrix, glm::vec3(0.01f));
 
 				shader.set_uniform_mat4("u_model", &model_matrix[0][0]);
 				shader.set_uniform_mat4("u_proj", &projection_matrix[0][0]);

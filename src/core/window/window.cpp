@@ -6,9 +6,10 @@ Win::Win()
 	glfwDefaultWindowHints();
 	glfwWindowHint(GLFW_SAMPLES, 4);
 
-	handle = glfwCreateWindow(1920, 1080, "Anima", nullptr, nullptr);
+	handle = glfwCreateWindow(640, 480, "Anima", nullptr, nullptr);
 	glfwMakeContextCurrent(handle);
-	glfwMaximizeWindow(handle);
+	//glfwMaximizeWindow(handle);
+    glfwSwapInterval(1);
 
 	glewInit();
 	glEnable(GL_DEPTH_TEST);
